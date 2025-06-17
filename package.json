@@ -1,11 +1,14 @@
 {
-  "name": "vercel-cdn-uploader",
+  "name": "cdn-uploader",
   "version": "1.0.0",
-  "main": "index.js",
-  "scripts": { "dev": "vercel dev" },
+  "type": "module",
+  "scripts": {
+    "dev": "vercel dev",
+    "start": "node api/uploader.js"
+  },
   "dependencies": {
-    "axios": "^1.6.7",
+    "@octokit/rest": "^20.0.0",
     "dotenv": "^16.3.1",
-    "formidable": "^2.1.1"
+    "formidable": "^3.5.0"
   }
 }
