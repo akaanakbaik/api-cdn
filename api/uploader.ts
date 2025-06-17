@@ -1,71 +1,64 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node'
-import formidable from 'formidable'
-import fs from 'fs'
-import path from 'path'
+const formidable = require('formidable');
+const fs = require('fs');
+const path = require('path');
+const axios = require('axios');
+require('dotenv').config();
 
-export const config = {
-  api: { bodyParser: false }
-}
+/** ekstensi yg di izinkan, klo perlu tambah aj sendiri, hehehe*/
+const allowed = new Set([
+  '.jpeg','.jpg','.png','.gif','.webp','.svg','.bmp','.tiff','.avif','.heic',
+  '.mp4','.webm','.avi','.mov','.mkv','.flv','.wmv','.ogv','.3gp','.ts',
+  '.mp3','.wav','.ogg','.flac','.aac','.m4a','.wma','.amr','.aiff','.mid',
+  '.pdf','.docx','.xlsx','.pptx','.odt','.ods','.odp','.txt','.csv','.json',
+  '.xml','.yaml','.js','.ts','.vue','.jsx','.tsx','.css','.scss','.sass',
+  '.less','.html','.htm','.php','.asp','.jsp','.rb','.py','.go','.lua','.sh','.bat','.ps1',
+  '.sql','.db','.sqlite','.mdb','.accdb','.fnt','.ttf','.otf','.woff','.woff2','.eot','.svgz',
+  '.md','.rst','.log','.gitignore','.env','.ini','.config','.toml','.dat','.bin',
+  '.iso','.dmg','.exe','.apk','.appimage','.deb','.rpm','.tar','.zip','.rar','.7z','.gz','.bz2','.xz','.lz',
+  '.skp','.blend','.fbx','.obj','.stl','.3ds','.mtl'
+]);
 
-const allowedExtensions = [
-  ".3ds", ".7z", ".aac", ".accdb", ".aiff", ".amr", ".apk", ".appimage", ".asp", ".avi",
-  ".bat", ".bin", ".blend", ".bmp", ".bz2", ".config", ".css", ".csv", ".dat", ".deb", ".docx",
-  ".dmg", ".env", ".eot", ".exe", ".fbx", ".flac", ".fnt", ".gif", ".go", ".gz", ".htm", ".html",
-  ".ico", ".ini", ".iso", ".jar", ".java", ".jpeg", ".jpg", ".js", ".json", ".jsp", ".less", ".log",
-  ".lua", ".lz", ".md", ".mdb", ".mid", ".mkv", ".mov", ".mp3", ".mp4", ".mpa", ".mpg", ".msi", ".mtl",
-  ".odp", ".ods", ".odt", ".ogg", ".otf", ".pdf", ".php", ".png", ".pptx", ".ps1", ".py", ".rar", ".rb",
-  ".rpm", ".rst", ".sass", ".scss", ".sh", ".skp", ".sql", ".svg", ".svgz", ".tar", ".tiff", ".toml",
-  ".ts", ".tsx", ".ttf", ".txt", ".vue", ".wav", ".webm", ".webp", ".wma", ".woff", ".woff2", ".wmv",
-  ".xml", ".yaml", ".zip"
-]
-
-function sanitizeFilename(filename: string): string {
-  const base = path.basename(filename)
-  return base.replace(/[^a-zA-Z0-9._-]/g, '_')
-}
-
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Only POST method is allowed' })
-
-  const form = formidable({ maxFileSize: 100 * 1024 * 1024 })
-
-  form.parse(req, async (err, fields, files) => {
-    if (err || !files.file) return res.status(400).json({ error: 'Invalid upload or file missing' })
-
-    const file = Array.isArray(files.file) ? files.file[0] : files.file
-    const fileBuffer = fs.readFileSync(file.filepath)
-    const ext = path.extname(file.originalFilename || '').toLowerCase()
-
-    if (!allowedExtensions.includes(ext)) {
-      return res.status(415).json({ error: `Unsupported file type: ${ext}` })
-    }
-
-    const safeName = sanitizeFilename(file.originalFilename || `upload-${Date.now()}${ext}`)
-    const uploadPath = `public/${safeName}`
-
-    const githubRes = await fetch(`https://api.github.com/repos/${process.env.GITHUB_USERNAME}/${process.env.GITHUB_REPO}/contents/${uploadPath}`, {
-      method: 'PUT',
-      headers: {
-        Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
-        'User-Agent': 'furina-uploader',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        message: `upload ${safeName}`,
-        content: fileBuffer.toString('base64'),
-        branch: process.env.GITHUB_BRANCH || 'main',
-      })
-    })
-
-    const result = await githubRes.json()
-
-    if (!result?.content?.download_url) {
-      return res.status(500).json({ error: 'Upload failed', detail: result })
-    }
-
-    return res.status(200).json({
-      filename: safeName,
-      url: `https://${process.env.CUSTOM_DOMAIN}/uploader/${safeName}`
-    })
-  })
+module.exports = async (req, res) => {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Metode harus POST' });
   }
+
+  const form = formidable({ maxFileSize: 100 * 1024 * 1024 }); // limit upload nya 100 embe
+  form.parse(req, async (err, fields, files) => {
+    if (err || !files.file) {
+      return res.status(400).json({ error: 'Upload gagal atau tidak ada file' });
+    }
+
+    const file = Array.isArray(files.file) ? files.file[0] : files.file;
+    const ext = path.extname(file.originalFilename).toLowerCase();
+
+    if (!allowed.has(ext)) {
+      return res.status(415).json({ error: `Tipe file tidak didukung: ${ext}` });
+    }
+
+    const data = fs.readFileSync(file.filepath);
+    const id = Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+    const filename = `${id}${ext}`;
+    const content = data.toString('base64');
+
+    const ghUrl = `https://api.github.com/repos/${process.env.GITHUB_USERNAME}/${process.env.GITHUB_REPO}/contents/public/${filename}`;
+    try {
+      await axios.put(ghUrl, {
+        message: `upload ${filename}`,
+        branch: process.env.GITHUB_BRANCH,
+        content
+      }, {
+        headers: {
+          Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
+          Accept: 'application/vnd.github+json'
+        }
+      });
+
+      const fileUrl = `https://${process.env.CUSTOM_DOMAIN}/uploader/${filename}`;
+      return res.status(200).json({ status: 'success', filename, url: fileUrl });
+    } catch (e) {
+      console.error('Upload error:', e.response?.data || e.message);
+      return res.status(500).json({ error: 'Gagal upload ke GitHub', detail: e.response?.data || e.message });
+    }
+  });
+};
