@@ -1,8 +1,11 @@
 {
   "version": 2,
-  "builds": [{ "src": "api/uploader.ts", "use": "@vercel/node" }],
+  "builds": [
+    { "src": "api/uploader.js", "use": "@vercel/node" },
+    { "src": "api/static.js", "use": "@vercel/node" }
+  ],
   "routes": [
-    { "src": "/uploader", "methods": ["POST"], "dest": "api/uploader.ts" },
-    { "src": "/uploader/(.*)", "dest": "https://raw.githubusercontent.com/akaanakbaik/dobe/main/public/$1" }
+    { "src": "/uploader$", "methods": ["POST"], "dest": "api/uploader.js" },
+    { "src": "/uploader/(.*)", "methods": ["GET"], "dest": "api/static.js" }
   ]
 }
