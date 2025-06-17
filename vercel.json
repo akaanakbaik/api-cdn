@@ -1,11 +1,24 @@
 {
   "version": 2,
   "builds": [
-    { "src": "api/uploader.js", "use": "@vercel/node" },
-    { "src": "api/static.js", "use": "@vercel/node" }
+    {
+      "src": "api/uploader.js",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "api/static.js",
+      "use": "@vercel/node"
+    }
   ],
   "routes": [
-    { "src": "/uploader$", "methods": ["POST"], "dest": "api/uploader.js" },
-    { "src": "/uploader/(.*)", "methods": ["GET"], "dest": "api/static.js" }
+    {
+      "src": "/uploader",
+      "methods": ["POST"],
+      "dest": "api/uploader.js"
+    },
+    {
+      "src": "/uploader/(.*)",
+      "dest": "api/static.js"
+    }
   ]
 }
